@@ -1,0 +1,3 @@
+*.pyc
+scratch/.ipynb_checkpoints/
+src/spectro.egg-info/
