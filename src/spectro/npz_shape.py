@@ -14,6 +14,7 @@ if __name__ == "__main__":
     parser.add_argument("filenames", nargs="+", metavar="file",
                         help="Input filenames.",
     )
+    parser.add_argument("pickle", action="store_true", help="Allow pickle")
 
     args = parser.parse_args()
 
@@ -21,7 +22,7 @@ if __name__ == "__main__":
     indent = " "*(indent-1)
     for fn in args.filenames:
         print(fn,":")
-        ds = np.load(fn)
+        ds = np.load(fn, allow_pickle=args.pickle)
         for k, d in ds.items():
             print(indent, "{:18s} {:15s} {}".format(k, repr(d.shape), d.dtype))
         

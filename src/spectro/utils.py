@@ -10,6 +10,7 @@ from scipy.constants import eV, h, c, nano, femto, pi
 from math import sqrt, pi
 from scipy.interpolate import UnivariateSpline, RectBivariateSpline
 from scipy.optimize import brentq
+from scipy.ndimage import median_filter
 
 sq2 = sqrt(2)
 sqpi = sqrt(pi)
@@ -65,6 +66,10 @@ def band(a, v, w):
     hw = w/2
     return between(a, v-hw, v+hw)
 
+def project(data, mask, axis=None):
+    """Project a slice of `data` where `mask` is True along `axis`."""
+    return data.compress(mask, axis=axis).sum(axis=axis)
+
 def regularize(x, upsample=2):
     if x.ndim != 1: raise ValueError("Built for 1d axis")
     return np.linspace(np.min(x), np.max(x), x.size * upsample)
@@ -107,8 +112,8 @@ def regrid2d(x, y, z, upsample=2):
 
 
 def rescale(x):
-    """Divide by max absolute value"""
-    return x / np.max(np.abs(x))
+    """Divide by max absolute value. Non finite values are ignored."""
+    return x / np.max(np.abs(x), initial=0, where=np.isfinite(x))
 
 def fc_factor(m, n, s):
     """
@@ -434,13 +439,14 @@ def bloch_abs_adiag(x, amp, x0, s, g, nmax=True):
     return y*amp
 
 
-def brent_fwhm(t, amp, retall=False):
+def brent_fwhm(t, amp, retall=False, shift=True):
     """Obtain FWHM using brent's method to find half max crossings.
 
     This will not behave well if more than two halfmax crossings are present.
     """
     assert np.all(np.diff(t) > 0)
-    amp = amp - np.min(amp)
+    if shift:
+        amp = amp - np.min(amp)
     amp /= np.max(amp)
     ampf = UnivariateSpline(t, amp-0.5, k=1, s=0)
     t_max = t[np.argmax(amp)]
@@ -450,6 +456,22 @@ def brent_fwhm(t, amp, retall=False):
         return t2-t1, (t1, t2)
     else:
         return t2-t1
+
+
+def largest_fwhm(x, y, retall=False):
+    y = y.copy()
+    y -= np.min(y)
+    y /= np.max(y)
+    g1 = x[np.argmax(y > 0.5)]
+    g2 = x[::-1][np.argmax(y[::-1] > 0.5)]
+    yf = UnivariateSpline(x, y-0.5, k=1, s=0)
+    x1 = brentq(yf, x[0], g1)
+    x2 = brentq(yf, g2, x[-1])
+    if retall:
+        return x2-x1, (x1, x2)
+    else:
+        return x2-x1
+
 
 def brent_fwtm(t, amp, retall=False):
     """Obtain FWHM using brent's method to find half max crossings.
@@ -502,3 +524,13 @@ def pack_trace(t, wl, trace):
     packed[1:,0] = wl
     packed[0, 1:] = t
     return packed
+
+
+def despike_median(data, size, threshold=5):
+    cutoff = np.std(data) * threshold
+    filtered = median_filter(data, size=size)
+    reject = np.abs(filtered-data) > cutoff
+    despiked = np.copy(data)
+    despiked[reject] = filtered[reject]
+    return despiked
+
