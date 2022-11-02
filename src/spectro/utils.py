@@ -115,6 +115,10 @@ def rescale(x):
     """Divide by max absolute value. Non finite values are ignored."""
     return x / np.max(np.abs(x), initial=0, where=np.isfinite(x))
 
+def sparkline(x):
+    """Shift and scale data to the 0-1 range."""
+    return rescale(x-np.min(x))
+
 def fc_factor(m, n, s):
     """
     Franck-Condon overlap between states with identical vibrational frequency.
