@@ -443,20 +443,44 @@ def bloch_abs_adiag(x, amp, x0, s, g, nmax=True):
     return y*amp
 
 
-def brent_fwhm(t, amp, retall=False, shift=True):
+def brent_fwhm(x, amp, ret_pts=False, shift=True):
     """Obtain FWHM using brent's method to find half max crossings.
 
-    This will not behave well if more than two halfmax crossings are present.
+    This algoritms works by scaling the data by its max amplitude, then finding
+    the points where: 0 = y_s - 0.5. By default, it shifts and scale the data 
+    to the [0, 1] interval. The minimum value can be left unchanged if 
+    `shift=False`.
+
+    This will not behave well if more than two halfmax crossings are present:
+    two of them will be arbitarily selected.
+
+    Parameters
+    ---------
+    x : (N,) np.ndarray
+        Independant variable, in ascending order
+    amp : (N,) np.ndarray
+        Dependant variable
+    ret_pts : bool, default False
+        Return half-max crossing points?
+    shift : bool, default True
+        Shift minimum to 0.
+
+    Returns
+    -------
+    fwhm : float
+        Full width at half maximum
+    (x1, x2) : (float, float), only if ret_pts
+        Half max crossing positions.
     """
-    assert np.all(np.diff(t) > 0)
+    assert np.all(np.diff(x) > 0)
     if shift:
         amp = amp - np.min(amp)
     amp /= np.max(amp)
-    ampf = UnivariateSpline(t, amp-0.5, k=1, s=0)
-    t_max = t[np.argmax(amp)]
-    t1 = brentq(ampf, t[0], t_max)
-    t2 = brentq(ampf, t_max, t[-1])
-    if retall:
+    ampf = UnivariateSpline(x, amp-0.5, k=1, s=0)
+    t_max = x[np.argmax(amp)]
+    t1 = brentq(ampf, x[0], t_max)
+    t2 = brentq(ampf, t_max, x[-1])
+    if ret_pts:
         return t2-t1, (t1, t2)
     else:
         return t2-t1
@@ -478,9 +502,9 @@ def largest_fwhm(x, y, retall=False):
 
 
 def brent_fwtm(t, amp, retall=False):
-    """Obtain FWHM using brent's method to find half max crossings.
+    """Obtain FWHM using brent's method to find 1/10 max crossings.
 
-    This will not behave well if more than two halfmax crossings are present.
+    This will not behave well if more than two crossings are present.
     """
     amp = amp - np.min(amp)
     amp /= np.max(amp)

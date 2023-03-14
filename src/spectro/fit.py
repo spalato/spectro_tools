@@ -237,6 +237,6 @@ def params_to_matrix(params, n_curves, n_exp, fmt="a_{}_{}"):
     """
     das_mat = np.zeros((n_curves, n_exp))
     for i in range(n_curves):
-        for j in range(n_curves):
+        for j in range(n_exp):
             das_mat[i,j] = params[fmt.format(i,j)]
     return das_mat
