@@ -71,3 +71,11 @@ def read_ta_dat(fname, sort_t=True):
         t = t[srt_idx]
         z = z[:,srt_idx]
     return t, wl, z
+
+
+def read_ab_dat(fname):
+    "Read a `.dat` file from OMAFEMTO for absorption spectrum"
+    dat = np.loadtxt(fname)
+    wl = dat[1:,0]
+    z = dat[1:,1:]
+    return wl, z
