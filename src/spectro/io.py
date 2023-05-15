@@ -58,3 +58,16 @@ def read_oceanview(fname):
         dat = np.loadtxt(dropwhile(lambda ln: "Begin Spectral Data" not in ln, f), skiprows=1)
         assert dat.shape[1] == 2 # not sure how multiple columns are handled
         return dat[:,0], dat[:,1]
+
+def read_ta_dat(fname, sort_t=True):
+    "Read a `.dat` file from OMAFEMTO."
+    dat = np.loadtxt(fname)
+    t = dat[0,1:]
+    wl = dat[1:,0]
+    z = dat[1:,1:]
+    if sort_t:
+        # This is overkill. We should just reverse
+        srt_idx = np.argsort(t)
+        t = t[srt_idx]
+        z = z[:,srt_idx]
+    return t, wl, z
