@@ -2,6 +2,8 @@
 
 import numpy as np
 from itertools import dropwhile
+import logging
+logger = logging.getLogger(__name__)
 
 
 def read_tcspc_dat(fname):
@@ -58,6 +60,31 @@ def read_oceanview(fname):
         dat = np.loadtxt(dropwhile(lambda ln: "Begin Spectral Data" not in ln, f), skiprows=1)
         assert dat.shape[1] == 2 # not sure how multiple columns are handled
         return dat[:,0], dat[:,1]
+
+
+def read_asc(fname, delimiter=","):
+    """
+    Read a single `asc` file, the ASCII format from Andor Solis.
+
+    Parameters
+    ----------
+    fname : str, path-like
+        File to open.
+
+    """
+    logger.debug("Loading `.asc` file: %s", fname)
+    with open(fname) as f:
+        contents = f.read()
+    meta_start = contents.find("Date and Time")
+    logger.debug("  Metadata at %i", meta_start)
+    if meta_start == 0:
+        start = contents.find("\n"*3)
+        end = None
+    else:
+        start = None
+        end = contents.find("\n"*3)
+    return np.loadtxt((ln for ln in contents[start:end].splitlines() if ln), delimiter=delimiter)
+
 
 def read_ta_dat(fname, sort_t=True):
     "Read a `.dat` file from OMAFEMTO."
