@@ -17,4 +17,4 @@ dependencies = [
 ]
 
 [project.scripts]
-mycli = "spectro.scripts.spectra_fit:app"
+spectra_fit = "spectro.scripts.spectra_fit:app"
