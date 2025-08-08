@@ -156,7 +156,7 @@ def brent_fwhm(x, amp, shift=True):
     assert np.all(np.diff(x) > 0)
     if shift:
         amp = amp - np.min(amp)
-    amp /= np.max(amp)
+    amp = amp/np.max(amp)
     ampf = UnivariateSpline(x, amp-0.5, k=1, s=0)
     t_max = x[np.argmax(amp)]
     t1 = brentq(ampf, x[0], t_max)

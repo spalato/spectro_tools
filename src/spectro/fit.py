@@ -8,6 +8,8 @@ import lmfit
 import logging
 from scipy.interpolate import interp1d
 from decorator import decorator
+from scipy.special import erfc, erf
+tiny = 1.0e-15
 
 logger = logging.getLogger(__name__)
 
@@ -231,6 +233,78 @@ def make_global_multiexp(n_curves, n_exp):
         return res
     return global_model
 
+def make_global_multicexp(n_curves, n_exp):
+    """
+    Make a multiexponential global model for use with lmfit.
+
+    This is suitable for DAS analysis. Contains exponential decays convolved
+    with a gaussian IRF and a XPM artifact.
+
+    Parameters
+    ----------
+    n_curves : int
+        Number of curves in data.
+    n_exp: int
+        Number of exponential components.
+
+    Returns
+    -------
+    global_model : function
+        The global model function.
+
+    Notes
+    -----
+    The returned model has the following arguments.
+    params : dictionnary-like
+        dict or lmfit.Parameters object representing the parameters
+        It should have the following keys:
+            t0 : time_zero
+            irf : irf width (sigma)
+            xpm_w : cross-phase modulation artifact width (sigma)
+            tau_j : lifetimes. j in [0, n_exp[
+            a_i_j : amplitudes. i in [0, n_curves[, j in [0, n_exp[
+            xpma_i : amplitude of XPM. i in [0, n_curves[
+            y_i : offsets, i in [0, n_curves[
+    x : 1D array-like
+        The independant variable (most likely time)
+
+    The model returns an array with dimensions (n_curves, x.size).
+
+    Example
+    -------
+    n_curves, n_exp = 4, 3
+    model = regrid(1)(make_global_multiexp(n_curves, n_exp)
+    resid = resid_vs(data)(model)
+    guess = lmfit.Parameters()
+    # ... populate the `guess`
+    mini = lmfit.Minimizer(flat_out(resid), guess, fcn_args=(times,))
+    results = mini.minimize()
+    """
+    def global_model(params, x):
+        t0 = params["t0"]
+        irf = params["irf"]
+        xpm_w = params["xpm_w"]
+        decays = np.zeros((n_exp, x.size))
+        for j in range(n_exp):
+            k = 'tau_{}'.format(j)
+            decays[j, :] = conv_exp(x, 1, params[k], irf, t0, 0)
+        amps = np.array(
+            [[params["a_{}_{}".format(i, j)]
+              for j in range(n_exp)]
+             for i in range(n_curves)]
+        )
+        res = np.dot(amps, decays)
+        # add offsets
+        for i in range(n_curves):
+            res[i,:] += conv_exp(x, 0, 10, irf, t0, params[f"y_{i}"])
+        # add xpm
+        xpm_artifact = xpm(x, 1, t0, xpm_w)
+        xpm_amps = np.array([params["xpma_{}".format(i)]
+                             for i in range(n_curves)])
+        res += xpm_amps[:, np.newaxis] * xpm_artifact[np.newaxis, :]
+        return res
+    return global_model
+
 def params_to_matrix(params, n_curves, n_exp, fmt="a_{}_{}"):
     """
     Convert fit parameters a_i_j to coefficient matrix.
@@ -240,3 +314,147 @@ def params_to_matrix(params, n_curves, n_exp, fmt="a_{}_{}"):
         for j in range(n_exp):
             das_mat[i,j] = params[fmt.format(i,j)]
     return das_mat
+
+
+def conv_exp(x, amp, tau, sigma, t0, y0):
+    """
+    Single exponential decay convolved with a gaussian. Includes an offset.
+
+    The value of y is computed directly as:
+    y = amp/2 * exp[0.5 (k sigma)^2 - k t_r] erfc[(sigma^2 k - t_r) / (sqrt(2) sigma)]
+    where k = 1/tau and t_r = t-t0.
+
+    The offset y0 is added as:
+    y += 0.5 y0 (1 + erf[ t_r / (sqrt(2) sigma)])
+
+    The calculation is performed only for t_r >= -5 sigma.
+
+    Parameters
+    ----------
+    x : (N,) np.ndarray
+        Independent variable (typically time).
+    amp : float
+        Amplitude
+    tau : float
+        Decay time constant
+    sigma : float
+        Width of the gaussian IRF.
+    t0 : float
+        Time 0.
+    y0 : float
+        Offset.
+
+    Returns
+    -------
+    y : (N,) np.ndarray
+        Model values.
+    """
+    tr = x-t0
+    k = max(1/tau, tiny)
+    out = np.zeros_like(tr)
+    thres = -5 * sigma
+    m = tr >= thres
+    out[m] = 0.5 * np.exp(0.5 * (k * sigma) ** 2 - k * tr[m]) * erfc((sigma ** 2 * k - tr[m]) / (np.sqrt(2) * sigma))
+    out *= amp
+    out += 0.5*y0*(1 + erf(tr / sigma / np.sqrt(2)))
+    return out
+
+def conv_biexp(x, amp0, tau0, amp1, tau1, sigma, t0, y0):
+    """
+    Biexponential decay convolved with a gaussian. Includes an offset.
+
+    For each exponential component, the value of y_i is computed directly as:
+    y_i = amp_i/2 * exp[0.5 (k_i sigma)^2 - k_i t_r] erfc[(sigma^2 k_i - t_r) / (sqrt(2) sigma)]
+    where k_i = 1/tau_i and t_r = t-t0.
+
+    The offset y0 is added as:
+    y += 0.5 y0 (1 + erf[ t_r / (sqrt(2) sigma)])
+
+    The calculation is performed only for t_r >= -5 sigma.
+
+    Parameters
+    ----------
+    x : (N,) np.ndarray
+        Independent variable (typically time).
+    amp0 : float
+        Amplitude
+    tau0 : float
+        Decay time constant
+    amp1 : float
+        Amplitude
+    tau1 : float
+        Decay time constant
+    sigma : float
+        Width of the gaussian IRF.
+    t0 : float
+        Time 0.
+    y0 : float
+        Offset.
+
+    Returns
+    -------
+    y : (N,) np.ndarray
+        Model values.
+    """
+    tr = x-t0
+    out = np.zeros_like(tr)
+    thres = -5 * sigma
+    m = tr >= thres
+    amps = [amp0, amp1]
+    ks = [max(1/tau, tiny) for tau in (tau0, tau1)]
+    for a, k in zip(amps, ks):
+        out[m] += a * 0.5 * np.exp(0.5 * (k * sigma) ** 2 - k * tr[m]) * erfc((sigma ** 2 * k - tr[m]) / (np.sqrt(2) * sigma))
+    out += 0.5*y0*(1 + erf(tr / sigma / np.sqrt(2)))
+    return out
+
+def conv_triexp(x, amp0, tau0, amp1, tau1, amp2, tau2, sigma, t0, y0):
+    """
+    Triple exponential decay convolved with a gaussian. Includes an offset.
+
+    For each exponential component, the value of y_i is computed directly as:
+    y_i = amp_i/2 * exp[0.5 (k_i sigma)^2 - k_i t_r] erfc[(sigma^2 k_i - t_r) / (sqrt(2) sigma)]
+    where k_i = 1/tau_i and t_r = t-t0.
+
+    The offset y0 is added as:
+    y += 0.5 y0 (1 + erf[ t_r / (sqrt(2) sigma)])
+
+    The calculation is performed only for t_r >= -5 sigma.
+
+    Parameters
+    ----------
+    x : (N,) np.ndarray
+        Independent variable (typically time).
+    amp0 : float
+        Amplitude
+    tau0 : float
+        Decay time constant
+    amp1 : float
+        Amplitude
+    tau1 : float
+        Decay time constant
+    amp2 : float
+        Amplitude
+    tau2 : float
+        Decay time constant
+    sigma : float
+        Width of the gaussian IRF.
+    t0 : float
+        Time 0.
+    y0 : float
+        Offset.
+
+    Returns
+    -------
+    y : (N,) np.ndarray
+        Model values.
+    """
+    tr = x-t0
+    out = np.zeros_like(tr)
+    thres = -5 * sigma
+    m = tr >= thres
+    amps = [amp0, amp1, amp2]
+    ks = [max(1/tau, tiny) for tau in (tau0, tau1, tau2)]
+    for a, k in zip(amps, ks):
+        out[m] += a * 0.5 * np.exp(0.5 * (k * sigma) ** 2 - k * tr[m]) * erfc((sigma ** 2 * k - tr[m]) / (np.sqrt(2) * sigma))
+    out += 0.5*y0*(1 + erf(tr / sigma / np.sqrt(2)))
+    return out

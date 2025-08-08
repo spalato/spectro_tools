@@ -1,0 +1,18 @@
+[build-system]
+requires = ["flit_core >=3.2,<4"]
+build-backend = "flit_core.buildapi"
+
+[project]
+name = "spectro_tools"
+authors = [{name = "Samuel Palato", email = "7659022+spalato@users.noreply.github.com"}]
+readme = "README.md"
+license = {file = "LICENSE"}
+classifiers = ["License :: OSI Approved :: MIT License"]
+dynamic = ["version", "description"]
+dependencies = [
+    "numpy",
+    "scipy",
+    "lmfit",
+    "matplotlib",
+
+]
