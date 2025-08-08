@@ -2,3 +2,5 @@
 scratch/.ipynb_checkpoints/
 src/spectro.egg-info/
 .idea/
+src/spectro/_version.py
+dist/

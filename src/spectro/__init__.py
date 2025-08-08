@@ -1,5 +1,8 @@
 """
 Tools for spectroscopy.
 """
-
-__version__ = "0.2"
+try:
+    from ._version import __version__, __commit__
+except ImportError:
+    __version__ = "0.0.0"
+    __commit__ = "unknown"
