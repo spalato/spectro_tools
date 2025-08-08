@@ -3,10 +3,9 @@ requires = ["flit_core >=3.2,<4"]
 build-backend = "flit_core.buildapi"
 
 [project]
-name = "spectro_tools"
+name = "spectro"
 authors = [{name = "Samuel Palato", email = "7659022+spalato@users.noreply.github.com"}]
-readme = "README.md"
-license = {file = "LICENSE"}
+license = {file = "LICENSE.txt"}
 classifiers = ["License :: OSI Approved :: MIT License"]
 dynamic = ["version", "description"]
 dependencies = [
@@ -14,5 +13,8 @@ dependencies = [
     "scipy",
     "lmfit",
     "matplotlib",
-
+    "typer[all]"
 ]
+
+[project.scripts]
+mycli = "spectro.scripts.spectra_fit:app"
