@@ -1,6 +1,6 @@
 [build-system]
 requires = ["flit_core >=3.2,<4"]
-build-backend = "build_backend"
+build-backend = "flit_core.buildapi"
 
 [project]
 name = "spectro"
@@ -17,4 +17,4 @@ dependencies = [
 ]
 
 [project.scripts]
-spectra_fit = "spectro.scripts.spectra_fit:app"
+mycli = "spectro.scripts.spectra_fit:app"
